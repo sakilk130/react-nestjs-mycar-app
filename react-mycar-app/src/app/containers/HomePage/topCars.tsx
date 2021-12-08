@@ -8,6 +8,14 @@ import '@brainhubeu/react-carousel/lib/style.css';
 import { useMediaQuery } from 'react-responsive';
 import { SCREENS } from '../../components/responsive';
 import carsService from '../../services/carsService';
+import { Dispatch } from 'redux';
+import { GetCars_cars } from '../../services/carsService/__generated__/GetCars';
+import { setTopCars } from './slice';
+import { useDispatch, useSelector } from 'react-redux';
+import { createSelector } from 'reselect';
+import { makeSelectTopCars } from './selectors';
+import MoonLoader from 'react-spinners/MoonLoader';
+
 const TopCarsContainer = styled.div`
   ${tw`
   max-w-screen-lg
@@ -43,16 +51,53 @@ const CarsContainer = styled.div`
   md:mt-10
   `}
 `;
+const EmptyCars = styled.div`
+  ${tw`
+    w-full
+    flex
+    justify-center
+    items-center
+    text-sm
+    text-gray-500
+  `};
+`;
+
+const LoadingContainer = styled.div`
+  ${tw`
+    w-full
+    mt-9
+    flex
+    justify-center
+    items-center
+    text-base
+    text-black
+  `};
+`;
+
+const actionDispatch = (dispatch: Dispatch) => ({
+  setTopCars: (cars: GetCars_cars[]) => dispatch(setTopCars(cars)),
+});
+
+const stateSelector = createSelector(makeSelectTopCars, (topCars) => ({
+  topCars,
+}));
+const wait = (timeout: number) => new Promise((rs) => setTimeout(rs, timeout));
 
 function TopCars() {
   const [current, setCurrent] = useState(3);
   const isMobile = useMediaQuery({ maxWidth: SCREENS.sm });
+  const { topCars } = useSelector(stateSelector);
+  const { setTopCars } = actionDispatch(useDispatch());
+  const [isLoading, setLoading] = useState(false);
 
   const fetchTopCars = async () => {
+    setLoading(true);
     const cars = await carsService.getCars().catch((err) => {
       console.log('ERROR', err);
     });
-    console.log(cars);
+    
+    if (cars) setTopCars(cars);
+    setLoading(false);
   };
 
   const testCar: ICar = {
@@ -81,57 +126,66 @@ function TopCars() {
     fetchTopCars();
   }, []);
 
-  const cars = [
-    <Car {...testCar} />,
-    <Car {...testCar2} />,
-    <Car {...testCar2} />,
-    <Car {...testCar2} />,
-    <Car {...testCar2} />,
-  ];
+  const isEmptyTopCars = !topCars || topCars.length === 0;
+
+  const cars =
+    (!isEmptyTopCars &&
+      topCars.map((car) => <Car {...car} thumbnailSrc={car.thumbnailUrl} />)) ||
+    [];
+
   const numberOfDots = isMobile ? cars.length : Math.ceil(cars.length / 3);
 
   return (
     <TopCarsContainer>
       <Title>Explore Our Top Deals</Title>
-      <CarsContainer>
-        <Carousel
-          value={current}
-          onChange={setCurrent}
-          slides={cars}
-          plugins={[
-            'clickToChange',
-            {
-              resolve: slidesToShowPlugin,
-              options: {
-                numberOfSlides: 3,
+      {isLoading && (
+        <LoadingContainer>
+          <MoonLoader loading size={20} />
+        </LoadingContainer>
+      )}
+      {isEmptyTopCars && !isLoading && <EmptyCars>No Cars To Show!</EmptyCars>}
+
+      {!isEmptyTopCars && !isLoading && (
+        <CarsContainer>
+          <Carousel
+            value={current}
+            onChange={setCurrent}
+            slides={cars}
+            plugins={[
+              'clickToChange',
+              {
+                resolve: slidesToShowPlugin,
+                options: {
+                  numberOfSlides: 3,
+                },
               },
-            },
-          ]}
-          breakpoints={{
-            640: {
-              plugins: [
-                {
-                  resolve: slidesToShowPlugin,
-                  options: {
-                    numberOfSlides: 1,
+            ]}
+            breakpoints={{
+              640: {
+                plugins: [
+                  {
+                    resolve: slidesToShowPlugin,
+                    options: {
+                      numberOfSlides: 1,
+                    },
                   },
-                },
-              ],
-            },
-            900: {
-              plugins: [
-                {
-                  resolve: slidesToShowPlugin,
-                  options: {
-                    numberOfSlides: 2,
+                ],
+              },
+              900: {
+                plugins: [
+                  {
+                    resolve: slidesToShowPlugin,
+                    options: {
+                      numberOfSlides: 2,
+                    },
                   },
-                },
-              ],
-            },
-          }}
-        />
-        <Dots value={current} onChange={setCurrent} number={numberOfDots} />
-      </CarsContainer>
+                ],
+              },
+            }}
+          />
+          <Dots value={current} onChange={setCurrent} number={numberOfDots} />
+        </CarsContainer>
+      )}
     </TopCarsContainer>
   );
 }
